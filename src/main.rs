@@ -10,7 +10,7 @@ use std::process;
 use std::time::Instant;
 use strsim::normalized_damerau_levenshtein;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct DB {
     paths: Vec<String>,
 }
@@ -48,6 +48,9 @@ impl DB {
     fn bump<P: AsRef<Path>>(&self, path: &P) -> Self {
         let abspath = path.as_ref().canonicalize().unwrap();
         let abspath_str = abspath.to_string_lossy();
+        if abspath_str == "/" {
+            return self.clone();
+        }
         let mut new = DB {
             paths: self
                 .paths
@@ -62,7 +65,7 @@ impl DB {
 }
 
 #[derive(Clap)]
-#[clap(version = "1.0", author = "Kevin K.")]
+#[clap(version = "1.1", author = "obayemi")]
 struct Opts {
     input: String,
 
