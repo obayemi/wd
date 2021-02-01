@@ -69,16 +69,16 @@ impl DB {
 struct Opts {
     input: String,
 
-    #[clap(short = "c", long = "confidence", default_value = "0.4")]
+    #[clap(short = 'c', long = "confidence", default_value = "0.4")]
     confidence: f64,
 
-    #[clap(short = "l", long = "list")]
+    #[clap(short = 'l', long = "list")]
     list: Option<usize>,
 
     #[clap(long = "db")]
     db_path: Option<String>,
 
-    #[clap(short = "d", long = "debug")]
+    #[clap(short = 'd', long = "debug")]
     debug: bool,
 }
 
