@@ -92,8 +92,10 @@ fn dist(path: &Path, query: &str) -> f64 {
 
     let full_dist = normalized_damerau_levenshtein(path_str, query);
     let base_dist = normalized_damerau_levenshtein(basename, query);
+    let base_icase_dist =
+        normalized_damerau_levenshtein(&basename.to_ascii_lowercase(), &query.to_ascii_lowercase());
 
-    full_dist.max(base_dist)
+    full_dist.max(base_dist).max(base_icase_dist * 0.9)
 }
 
 fn main() {
