@@ -1,4 +1,4 @@
-use clap::Clap;
+use clap::Parser;
 use dirs::data_dir;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -64,7 +64,7 @@ impl DB {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "1.1", author = "obayemi")]
 struct Opts {
     input: String,
