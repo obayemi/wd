@@ -30,6 +30,11 @@ cargo install --git https://github.com/obayemi/wd
 
 That will install the wd binary (named `wdbin`), then we need to setup your shell.
 
+you will also need to create wd's xdg data directory with
+```
+mkdir ~/.local/share/wd
+```
+(maybe one day I'll add a thing to auto-create it, but who knows)
 
 ## Bash / Zsh
 
@@ -135,3 +140,4 @@ end
 
 funcsave cd
 ```
+
