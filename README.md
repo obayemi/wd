@@ -70,7 +70,7 @@ function wd
   end
 end
 
-functsave wd
+funcsave wd
 ```
 
 And then, the part where you don't want to lose the crapton of feature that are
