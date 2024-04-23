@@ -47,8 +47,6 @@ function wd () {
   target=$("${WDBIN:-"wdbin"}" complete "$@")
   if [ $? -eq 0 ]; then
     builtin cd "$target"
-  else
-    builtin cd "$@"
   fi
 }
 
@@ -65,8 +63,6 @@ function wd
 
   if test "$status" -eq 0
     builtin cd "$target"
-  else
-    builtin cd "$argv"
   end
 end
 

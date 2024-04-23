@@ -209,7 +209,7 @@ impl Opts {
     }
 }
 
-fn main() {
+fn main() -> eyre::Result<()> {
     let opts: Opts = Opts::parse();
 
     match &opts.action {
@@ -218,7 +218,12 @@ fn main() {
             confidence,
             list,
         } => {
-            for p in opts.complete(input, *confidence, *list).unwrap() {
+            let matches = opts.complete(input, *confidence, *list)?;
+            if matches.is_empty() {
+                eprint!("no match found for {input}");
+                std::process::exit(1);
+            };
+            for p in matches {
                 if opts.debug {
                     println!("[{:.2}] {}", p.confidence, p.path.display());
                 } else {
@@ -227,7 +232,8 @@ fn main() {
             }
         }
         Action::Forget { input } => {
-            opts.forget(input.as_deref()).unwrap();
+            opts.forget(input.as_deref())?;
         }
-    }
+    };
+    Ok(())
 }
