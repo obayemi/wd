@@ -110,6 +110,12 @@ function cd --description 'Change directory'
         return $status
     end
 
+    if test (count $argv) -eq 0
+      cd $HOME
+      return $status
+    end
+
+
     wd $argv  # notice how that's the one and only Thing that we actually want to change
     set -l cd_status $status
 

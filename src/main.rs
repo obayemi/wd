@@ -4,7 +4,7 @@
 
 use clap::{Parser, Subcommand};
 use dirs::data_dir;
-use eyre::Context;
+use eyre::{Context, OptionExt};
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter, Error as IOError, ErrorKind};
@@ -100,16 +100,21 @@ fn weight(index: usize) -> f64 {
     1.2 - (0.4 / (1. + (index as f64 / -2.).exp()))
 }
 
-fn dist(path: &Path, query: &str) -> f64 {
-    let path_str = path.to_str().unwrap();
-    let basename = path.file_name().unwrap().to_str().unwrap();
+fn dist(path: &Path, query: &str) -> eyre::Result<f64> {
+    let path_str = path.to_str().ok_or_eyre("couldn't turn path to str")?;
+    let basename = path.file_name().and_then(|s| s.to_str());
 
     let full_dist = normalized_damerau_levenshtein(path_str, query);
-    let base_dist = normalized_damerau_levenshtein(basename, query);
-    let base_icase_dist =
-        normalized_damerau_levenshtein(&basename.to_ascii_lowercase(), &query.to_ascii_lowercase());
+    let base_dist = basename
+        .map(|n| normalized_damerau_levenshtein(n, query))
+        .unwrap_or(0.);
+    let base_icase_dist = basename
+        .map(|n| {
+            normalized_damerau_levenshtein(&n.to_ascii_lowercase(), &query.to_ascii_lowercase())
+        })
+        .unwrap_or(0.);
 
-    full_dist.max(base_dist).max(base_icase_dist * 0.9)
+    Ok(full_dist.max(base_dist).max(base_icase_dist * 0.9))
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -130,7 +135,7 @@ pub enum Action {
 }
 
 #[derive(Parser)]
-#[clap(version = "1.1", author = "obayemi")]
+#[clap(version=env!("CARGO_PKG_VERSION"), author = "obayemi")]
 struct Opts {
     #[clap(long = "db")]
     db_path: Option<String>,
@@ -167,7 +172,7 @@ impl Opts {
             .paths()
             .iter()
             .enumerate()
-            .map(|(i, path)| (dist(path, input) * weight(i), path))
+            .map(|(i, path)| (dist(path, input).unwrap() * weight(i), path))
             .filter(|(confidence, _)| *confidence > min_confidence)
             .collect();
 
