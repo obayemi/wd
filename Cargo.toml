@@ -1,14 +1,15 @@
 [package]
 name = "wdbin"
-version = "1.1.0"
+version = "2.0.0"
 authors = ["obayemi <obayemi@ikjpz.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-strsim = "0.10.0"
-clap = { version = "3", features = ["derive"] }
+strsim = "0.11.0"
+clap = { version = "4", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-dirs = "2.0.2"
+dirs = "5"
+eyre = "0.6.12"

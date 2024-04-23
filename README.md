@@ -44,7 +44,7 @@ sourced from it)
 ```sh
 function wd () {
   local target
-  target=$("${WDBIN:-"wdbin"}" "$@")
+  target=$("${WDBIN:-"wdbin"}" complete "$@")
   if [ $? -eq 0 ]; then
     builtin cd "$target"
   else
@@ -52,7 +52,7 @@ function wd () {
   fi
 }
 
-alias cd=wd  # or not if you want to keep your `cd` working as if it were in the 80s
+alias cd=wd  # or not if you want to keep your `cd` working as if it were the 80s
 ```
 
 ## Special snowflakes (fish users)
@@ -61,7 +61,7 @@ run
 
 ```
 function wd
-  set target (wdbin "$argv")
+  set target (wdbin complete "$argv")
 
   if test "$status" -eq 0
     builtin cd "$target"
