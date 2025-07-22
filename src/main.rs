@@ -188,7 +188,20 @@ pub enum Action {
         /// Path to forget (defaults to current directory)
         input: Option<String>,
     },
-    // TODO: Init,
+    /// Output shell setup functions and aliases
+    Init {
+        /// Shell type (bash, zsh, fish)
+        #[clap(value_enum)]
+        shell: ShellType,
+    },
+}
+
+/// Supported shell types for initialization
+#[derive(Debug, Clone, clap::ValueEnum)]
+pub enum ShellType {
+    Bash,
+    Zsh,
+    Fish,
 }
 
 /// Command line options for the wd tool
@@ -275,6 +288,100 @@ impl Opts {
         db.write().wrap_err("error writing wd db")?;
         Ok(())
     }
+
+    /// Outputs shell setup functions and aliases for the specified shell
+    fn init(&self, shell: &ShellType) {
+        match shell {
+            ShellType::Bash | ShellType::Zsh => {
+                println!(r#"function wd () {{
+  local target
+  target=$("${{WDBIN:-"wdbin"}}" complete "$@")
+  if [ $? -eq 0 ]; then
+    builtin cd "$target"
+  fi
+}}
+
+alias cd=wd  # or remove this line if you want to keep your original cd"#);
+            }
+            ShellType::Fish => {
+                println!(r#"# Add these functions to your Fish config (~/.config/fish/config.fish)
+# or run: wdbin init fish >> ~/.config/fish/config.fish
+
+function wd
+  set target (wdbin complete $argv)
+
+  if test "$status" -eq 0
+    builtin cd "$target"
+  end
+end
+
+function cd --description 'Change directory'
+    set -l MAX_DIR_HIST 25
+
+    if test (count $argv) -gt 1
+        printf "%s\n" (_ "Too many args for cd command")
+        return 1
+    end
+
+    # Skip history in subshells.
+    if status --is-command-substitution
+        builtin cd $argv
+        return $status
+    end
+
+    # Avoid set completions.
+    set -l previous $PWD
+
+    if test "$argv" = "-"
+        if test "$__fish_cd_direction" = "next"
+            nextd
+        else
+            prevd
+        end
+        return $status
+    end
+
+    # allow explicit "cd ." if the mount-point became stale in the meantime
+    if test "$argv" = "."
+        cd "$PWD"
+        return $status
+    end
+
+    if test (count $argv) -eq 0
+      cd $HOME
+      return $status
+    end
+
+    wd $argv
+    set -l cd_status $status
+
+    if test $cd_status -eq 0 -a "$PWD" != "$previous"
+        set -q dirprev
+        or set -l dirprev
+        set -q dirprev[$MAX_DIR_HIST]
+        and set -e dirprev[1]
+
+        # If dirprev, dirnext, __fish_cd_direction
+        # are set as universal variables, honor their scope.
+
+        set -U -q dirprev
+        and set -U -a dirprev $previous
+        or set -g -a dirprev $previous
+
+        set -U -q dirnext
+        and set -U -e dirnext
+        or set -e dirnext
+
+        set -U -q __fish_cd_direction
+        and set -U __fish_cd_direction prev
+        or set -g __fish_cd_direction prev
+    end
+
+    return $cd_status
+end"#);
+            }
+        }
+    }
 }
 
 fn main() -> eyre::Result<()> {
@@ -301,6 +408,9 @@ fn main() -> eyre::Result<()> {
         }
         Action::Forget { input } => {
             opts.forget(input.as_deref())?;
+        }
+        Action::Init { shell } => {
+            opts.init(shell);
         }
     }
     Ok(())
