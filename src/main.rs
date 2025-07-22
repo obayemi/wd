@@ -301,7 +301,22 @@ impl Opts {
   fi
 }}
 
-alias cd=wd  # or remove this line if you want to keep your original cd"#);
+function cd() {{
+  # Handle special cases first
+  if [ $# -eq 0 ]; then
+    # cd with no arguments goes to HOME
+    builtin cd "$HOME"
+  elif [ "$1" = "-" ]; then
+    # cd - goes to previous directory
+    builtin cd -
+  elif [ "$1" = "~" ]; then
+    # cd ~ goes to HOME
+    builtin cd "$HOME"
+  else
+    # Use wd for all other cases
+    wd "$@"
+  fi
+}}"#);
             }
             ShellType::Fish => {
                 println!(r#"# Add these functions to your Fish config (~/.config/fish/config.fish)
