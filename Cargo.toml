@@ -3,6 +3,17 @@ name = "wdbin"
 version = "2.0.1"
 authors = ["obayemi <obayemi@ikjpz.com>"]
 edition = "2018"
+description = "A fast directory switcher command-line tool that helps you quickly navigate to frequently used directories"
+license = "MIT"
+repository = "https://github.com/obayemi/wd"
+keywords = ["cli", "directory", "navigation", "fuzzy", "search"]
+categories = ["command-line-utilities"]
+
+[lints.clippy]
+all = "deny"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

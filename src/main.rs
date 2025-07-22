@@ -49,24 +49,21 @@ impl DB {
     /// If the file doesn't exist, creates an empty database.
     /// If the file is corrupted, starts with an empty database and prints a warning.
     fn open(db_path: Option<&str>) -> Result<Self, IOError> {
-        let file_path = db_path
-            .map(|p| p.to_string())
-            .unwrap_or_else(Self::default_db_path);
+        let file_path = db_path.map_or_else(Self::default_db_path, std::string::ToString::to_string);
 
         match File::open(file_path.clone()) {
             Ok(file) => {
-                match serde_json::from_reader(BufReader::new(file)) {
-                    Ok(content) => Ok(Self { file_path, content }),
-                    Err(_) => {
-                        // If JSON is corrupted, start with empty database
-                        eprintln!(
-                            "Warning: Database file is corrupted, starting with empty database"
-                        );
-                        Ok(Self {
-                            file_path,
-                            content: DBContent::new(),
-                        })
-                    }
+                if let Ok(content) = serde_json::from_reader(BufReader::new(file)) {
+                    Ok(Self { file_path, content })
+                } else {
+                    // If JSON is corrupted, start with empty database
+                    eprintln!(
+                        "Warning: Database file is corrupted, starting with empty database"
+                    );
+                    Ok(Self {
+                        file_path,
+                        content: DBContent::new(),
+                    })
                 }
             }
             Err(e) => {
@@ -101,17 +98,17 @@ impl DB {
 
     /// Moves a path to the front of the list (most recently used).
     /// If the path doesn't exist in the database, it's added.
-    fn bump(&mut self, path: PathBuf) -> Result<&mut Self, IOError> {
-        let abspath: PathBuf = (*path).into();
+    fn bump(&mut self, path: &Path) -> &mut Self {
+        let abspath: PathBuf = path.to_path_buf();
         self.content.paths.retain(|p| p != &abspath);
         self.content.paths.insert(0, abspath);
-        Ok(self)
+        self
     }
 
     /// Removes a path from the database
-    fn forget(&mut self, path: PathBuf) -> Result<&mut Self, IOError> {
-        self.content.paths.retain(|p| p != &path);
-        Ok(self)
+    fn forget(&mut self, path: &Path) -> &mut Self {
+        self.content.paths.retain(|p| p != path);
+        self
     }
 
     /// Returns the default database path (e.g., ~/.local/share/wd/wddb)
@@ -139,7 +136,10 @@ impl CompleteResult {
 /// Calculates a weight factor based on the index position.
 /// More recent paths (lower indices) get higher weights.
 fn weight(index: usize) -> f64 {
-    1.2 - (0.4 / (1. + (index as f64 / -2.).exp()))
+    #[allow(clippy::cast_precision_loss)]
+    {
+        1.2 - (0.4 / (1. + (index as f64 / -2.).exp()))
+    }
 }
 
 /// Calculates the similarity distance between a path and a query string.
@@ -151,13 +151,11 @@ fn dist(path: &Path, query: &str) -> eyre::Result<f64> {
 
     let full_dist = normalized_damerau_levenshtein(path_str, query);
     let base_dist = basename
-        .map(|n| normalized_damerau_levenshtein(n, query))
-        .unwrap_or(0.);
+        .map_or(0., |n| normalized_damerau_levenshtein(n, query));
     let base_icase_dist = basename
-        .map(|n| {
+        .map_or(0., |n| {
             normalized_damerau_levenshtein(&n.to_ascii_lowercase(), &query.to_ascii_lowercase())
-        })
-        .unwrap_or(0.);
+        });
 
     Ok(full_dist.max(base_dist).max(base_icase_dist * 0.9))
 }
@@ -220,7 +218,7 @@ impl Opts {
             if self.debug {
                 println!("input is concrete path");
             }
-            db.bump(input_path.canonicalize()?)?
+            db.bump(&input_path.canonicalize()?)
                 .write()
                 .expect("failed to write to db");
             return Ok(vec![CompleteResult::new(1.0, input_path.canonicalize()?)]);
@@ -247,11 +245,14 @@ impl Opts {
 
         if list.is_none() {
             if let Some(item) = matches.first() {
-                db.bump(item.path.clone())?.write()?;
+                db.bump(&item.path).write()?;
             }
         }
         if self.debug {
-            println!("time: {:.2} ms", now.elapsed().as_micros() as f64 / 1000.)
+            #[allow(clippy::cast_precision_loss)]
+            {
+                println!("time: {:.2} ms", now.elapsed().as_micros() as f64 / 1000.);
+            }
         }
         Ok(matches)
     }
@@ -261,8 +262,8 @@ impl Opts {
     fn forget(&self, input: Option<&str>) -> eyre::Result<()> {
         let mut db = DB::open(self.db_path.as_deref()).wrap_err("error loading wd db")?;
 
-        let path = input.map(Path::new).unwrap_or_else(|| Path::new("."));
-        db.forget(path.canonicalize().wrap_err("foo")?)?.write()?;
+        let path = input.map_or_else(|| Path::new("."), Path::new);
+        db.forget(&path.canonicalize().wrap_err("foo")?).write()?;
 
         db.write().wrap_err("error writing wd db")?;
         Ok(())
@@ -282,7 +283,7 @@ fn main() -> eyre::Result<()> {
             if matches.is_empty() {
                 eprint!("no match found for {input}");
                 std::process::exit(1);
-            };
+            }
             for p in matches {
                 if opts.debug {
                     println!("[{:.2}] {}", p.confidence, p.path.display());
@@ -294,7 +295,7 @@ fn main() -> eyre::Result<()> {
         Action::Forget { input } => {
             opts.forget(input.as_deref())?;
         }
-    };
+    }
     Ok(())
 }
 
@@ -343,7 +344,7 @@ mod tests {
             fs::write(&db_path, content).unwrap();
 
             let db = DB::open(Some(db_path.to_str().unwrap())).unwrap();
-            assert_eq!(db.paths().len(), 0, "Failed for {}", filename);
+            assert_eq!(db.paths().len(), 0, "Failed for {filename}");
         }
     }
 
@@ -353,8 +354,8 @@ mod tests {
         let db_path = temp_dir.path().join("test.db");
 
         let mut db = DB::open(Some(db_path.to_str().unwrap())).unwrap();
-        db.bump(PathBuf::from("/test/path1")).unwrap();
-        db.bump(PathBuf::from("/test/path2")).unwrap();
+        db.bump(Path::new("/test/path1"));
+        db.bump(Path::new("/test/path2"));
         db.write().unwrap();
 
         let db2 = DB::open(Some(db_path.to_str().unwrap())).unwrap();
@@ -369,12 +370,12 @@ mod tests {
         let db_path = temp_dir.path().join("test.db");
 
         let mut db = DB::open(Some(db_path.to_str().unwrap())).unwrap();
-        db.bump(PathBuf::from("/path1")).unwrap();
-        db.bump(PathBuf::from("/path2")).unwrap();
-        db.bump(PathBuf::from("/path3")).unwrap();
+        db.bump(Path::new("/path1"));
+        db.bump(Path::new("/path2"));
+        db.bump(Path::new("/path3"));
 
         // Bump path1 again, should move to front
-        db.bump(PathBuf::from("/path1")).unwrap();
+        db.bump(Path::new("/path1"));
 
         assert_eq!(db.paths()[0], PathBuf::from("/path1"));
         assert_eq!(db.paths()[1], PathBuf::from("/path3"));
@@ -387,11 +388,11 @@ mod tests {
         let db_path = temp_dir.path().join("test.db");
 
         let mut db = DB::open(Some(db_path.to_str().unwrap())).unwrap();
-        db.bump(PathBuf::from("/path1")).unwrap();
-        db.bump(PathBuf::from("/path2")).unwrap();
-        db.bump(PathBuf::from("/path3")).unwrap();
+        db.bump(Path::new("/path1"));
+        db.bump(Path::new("/path2"));
+        db.bump(Path::new("/path3"));
 
-        db.forget(PathBuf::from("/path2")).unwrap();
+        db.forget(Path::new("/path2"));
 
         assert_eq!(db.paths().len(), 2);
         assert_eq!(db.paths()[0], PathBuf::from("/path3"));
@@ -410,7 +411,7 @@ mod tests {
         let path = Path::new("/home/user/documents/project");
 
         // Exact match
-        assert_eq!(dist(path, "/home/user/documents/project").unwrap(), 1.0);
+        assert!((dist(path, "/home/user/documents/project").unwrap() - 1.0).abs() < f64::EPSILON);
 
         // Partial match
         assert!(dist(path, "project").unwrap() > 0.5);
@@ -446,7 +447,7 @@ mod tests {
             .complete(test_dir.to_str().unwrap(), 0.4, None)
             .unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].confidence, 1.0);
+        assert!((results[0].confidence - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -455,12 +456,9 @@ mod tests {
         let db_path = temp_dir.path().join("test.db");
 
         let mut db = DB::open(Some(db_path.to_str().unwrap())).unwrap();
-        db.bump(PathBuf::from("/home/user/projects/rust-app"))
-            .unwrap();
-        db.bump(PathBuf::from("/home/user/projects/python-app"))
-            .unwrap();
-        db.bump(PathBuf::from("/home/user/documents/notes"))
-            .unwrap();
+        db.bump(Path::new("/home/user/projects/rust-app"));
+        db.bump(Path::new("/home/user/projects/python-app"));
+        db.bump(Path::new("/home/user/documents/notes"));
         db.write().unwrap();
 
         let opts = Opts {
