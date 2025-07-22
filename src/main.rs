@@ -51,6 +51,13 @@ impl DB {
     fn open(db_path: Option<&str>) -> Result<Self, IOError> {
         let file_path = db_path.map_or_else(Self::default_db_path, std::string::ToString::to_string);
 
+        // Ensure parent directory exists
+        if let Some(parent) = std::path::Path::new(&file_path).parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                eprintln!("Warning: Failed to create database directory {}: {}", parent.display(), e);
+            }
+        }
+
         match File::open(file_path.clone()) {
             Ok(file) => {
                 if let Ok(content) = serde_json::from_reader(BufReader::new(file)) {
@@ -480,5 +487,37 @@ mod tests {
     fn test_default_db_path() {
         let path = DB::default_db_path();
         assert!(path.contains("wd/wddb"));
+    }
+
+    #[test]
+    fn test_database_directory_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let nested_db_path = temp_dir.path().join("nested/dirs/test.db");
+        
+        // Ensure the nested directory doesn't exist initially
+        assert!(!nested_db_path.parent().unwrap().exists());
+        
+        // Opening the database should create the directory
+        let db = DB::open(Some(nested_db_path.to_str().unwrap())).unwrap();
+        
+        // Verify the parent directory was created
+        assert!(nested_db_path.parent().unwrap().exists());
+        
+        // Verify we can write to the database
+        db.write().unwrap();
+        assert!(nested_db_path.exists());
+    }
+
+    #[test]
+    fn test_database_directory_creation_with_existing_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let existing_dir = temp_dir.path().join("existing");
+        fs::create_dir(&existing_dir).unwrap();
+        let db_path = existing_dir.join("test.db");
+        
+        // Opening should work even if directory already exists
+        let db = DB::open(Some(db_path.to_str().unwrap())).unwrap();
+        db.write().unwrap();
+        assert!(db_path.exists());
     }
 }
